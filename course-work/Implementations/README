@@ -1,0 +1,127 @@
+# WoodCutter – Data Modeling & Analysis
+
+**Студент:** Име Фамилия  
+**Факултетен номер:** 2301321036  
+**Курс:** Моделиране и анализ на данни  
+
+## Описание на проекта
+
+Проектът представлява вътрешна система за управление на поръчки за
+изработка на мебелни плоскости (WoodCutter). Системата поддържа:
+
+- клиенти (потребители),
+- поръчки и статуси на поръчките,
+- плоскости (plate) и материали,
+- работници и машини в цеха,
+- доставка и адреси.
+
+Върху тази оперативна база се изгражда Data Warehouse модел за анализ
+на поръчките, разходите за материали и натовареността на работниците.
+
+## Използвани модели (диаграми)
+
+В папка `diagrams/` са включени:
+
+- `Conceptual_Diagram.drawio` – концептуален модел (Chen notation)  
+- `Logical_Diagram.drawio` – логически модел (Crow’s Foot notation)  
+- `DataWarehouse_Diagram.drawio` – DW модел (UML database notation)  
+
+## OLTP база данни (WoodCutterDB)
+
+Физическият модел е реализиран в MS SQL Server (LocalDB).
+
+Таблици (накратко):
+
+- `User`, `Role` – потребители и роли
+- `Order`, `OrderStatus`, `Shipping` – поръчки, статуси и доставки
+- `Material`, `Plate` – материали и плоскости
+- `Worker`, `Machine`, `WorkerMachine` – работници, машини и M:N връзка
+- `OrderWorker` – разпределение на работници по поръчки
+
+### Скриптове
+
+В папка `sql/`:
+
+1. **01_create_oltp.sql**  
+   Създава базата `WoodCutterDB` и всички таблици, PK/FK и индекси.
+
+2. **02_insert_sample_data.sql**  
+   Зарежда примерни данни – роли, потребители, материали, поръчки,
+   плоскости, работници и др.
+
+3. **03_create_function_sp_trigger.sql**  
+   - Функция: `fn_CalculateOrderMaterialCost(@OrderID)`  
+     - изчислява сумарния разход за материали по дадена поръчка.  
+   - Stored procedure: `sp_UpdateOrderTotalPrice(@OrderID)`  
+     - обновява `TotalPrice` на поръчка на база материален разход и цена на доставка.  
+   - Тригер: `trg_Plate_UpdateOrderTotalPrice` върху `Plate`  
+     - при промяна на плоскости преизчислява автоматично `TotalPrice` на засегнатите поръчки.
+
+## Data Warehouse (WoodCutterDW)
+
+DW моделът е реализиран в база `WoodCutterDW`.
+
+### Измерения (Dim)
+
+- `DimCustomer` – клиенти (user-и с роля Customer)  
+- `DimDate` – календарни дати (от CreatedAt и ShippingDate)  
+- `DimMaterial` – материали  
+- `DimWorker` – работници  
+- `DimMachine` – машини  
+- `DimShippingMethod` – методи на доставка  
+- `DimAddress` – адреси за доставка  
+- `DimOrderStatus` – статуси на поръчките  
+
+### Факт таблици (Fact)
+
+- `FactOrder` – агрегирана информация за поръчки  
+  - мерки: `TotalPrice`, `MaterialCostTotal`, `ShippingPrice`, `NumberOfPlates` и др.  
+- `FactPlateProduction` – производство на отделните плоскости  
+  - мерки: `Quantity`, `PlateArea`, `MaterialCost` и др.  
+- `FactWorkerDailyPerformance` – дневна натовареност на работниците  
+  - мерки: `TotalLaborHours`, `OrdersWorkedOn`, `PlatesHandled`, `TotalLaborCost`.
+
+### Скриптове
+
+4. **04_create_dw.sql**  
+   Създава базата `WoodCutterDW` и всички Dim/Fact таблици.
+
+5. **05_load_dw_from_oltp.sql**  
+   Зарежда измеренията и факт таблиците от `WoodCutterDB`
+   (чрез `INSERT ... SELECT`), използвайки бизнес ключове и функцията
+   `WoodCutterDB.dbo.fn_CalculateOrderMaterialCost`.
+
+## Power BI отчет
+
+В папка `powerbi/` се намира:
+
+- `WoodCutterDW_Report.pbix` – Power BI отчет върху `WoodCutterDW`.
+
+Основни визуализации:
+
+1. **Total Price by Order Status**  
+   - колонна диаграма по `StatusName` (DimOrderStatus) и `TotalPrice` (FactOrder).
+
+2. **Material Cost by Material Name**  
+   - bar chart по `Name` (DimMaterial) и `MaterialCost` (FactPlateProduction).
+
+3. **Worker Performance**  
+   - таблица по `FullName` (DimWorker) и мерки от FactWorkerDailyPerformance:
+     `TotalLaborHours`, `OrdersWorkedOn`, `TotalLaborCost`.
+
+4. **Total Price vs Material Cost over Time by Status**  
+   - комбинирана Line and Clustered Column диаграма:  
+     колони `TotalPrice` и линия `MaterialCostTotal`, групирани по година и статус на поръчката.
+
+## Как да стартирате проекта
+
+1. Стартирайте MS SQL Server (LocalDB) и изпълнете последователно:
+   - `01_create_oltp.sql`
+   - `02_insert_sample_data.sql`
+   - `03_create_function_sp_trigger.sql`
+   - `04_create_dw.sql`
+   - `05_load_dw_from_oltp.sql`
+
+2. Отворете **Power BI Desktop** и заредете файла
+   `powerbi/WoodCutterDW_Report.pbix`.  
+   При нужда актуализирайте връзката към сървъра `(localdb)\MSSQLLocalDB`.
